@@ -40,5 +40,4 @@ This means that the original proprietary license that G6EJD tried to enforce is 
 **with caffeine:**  
 
 <a href="https://www.buymeacoffee.com/cybdis" target="_blank">
-  <img src="/bmc-yellow-button.png" height="60px"/>
-</a>
+  <img src="https://raw.githubusercontent.com/CybDis/CybDis/main/bmc-yellow-button.png" height="60px"/></a>
