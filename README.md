@@ -35,3 +35,10 @@ The original code created by https://github.com/G6EJD/ is using the GPLv3 https:
 > Yes, because the program actually links to the library. As such, the terms of the GPL apply to the entire combination. The software modules that link with the library may be under various GPL compatible licenses, but the work as a whole must be licensed under the GPL.
 
 This means that the original proprietary license that G6EJD tried to enforce is unlawful as it is not compatible with the GPLv3 and removed from this fork, while keeping the attribution and all the copyright of the original creator.
+
+## Support my work ...
+**with caffeine:**  
+
+<a href="https://www.buymeacoffee.com/cybdis" target="_blank">
+  <img src="/bmc-yellow-button.png" height="60px"/>
+</a>
