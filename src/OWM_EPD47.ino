@@ -263,10 +263,14 @@ String ConvertUnixTime(int unix_time) {
 //#########################################################################################
 bool obtainWeatherData(WiFiClient & client, const String & RequestType) {
   const String units = (Units == "M" ? "metric" : "imperial");
+  const String Version = (RequestType=="onecall"?"3.0":"2.5");
   client.stop(); // close connection before sending a new request
   HTTPClient http;
+  // Since June 2024, OWM API need v3.0 for the current, and still provide forecast as
+  // awaited on version v2.5
   //api.openweathermap.org/data/2.5/RequestType?lat={lat}&lon={lon}&appid={API key}
-  String uri = "/data/2.5/" + RequestType + "?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
+  String uri = "/data/"+Version+"/"+RequestType+"?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
+  //Serial.println(uri);
   if (RequestType == "onecall") uri += "&exclude=minutely,hourly,alerts,daily";
   http.begin(client, server, 80, uri); //http.begin(uri,test_root_ca); //HTTPS example connection
   int httpCode = http.GET();
