@@ -64,7 +64,6 @@ long Delta           = 30; // ESP32 rtc speed compensation, prevents display at 
 #include "moon.h"
 #include "sunrise.h"
 #include "sunset.h"
-#include "uvi.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -88,25 +87,27 @@ boolean SetupTime() {
   return UpdateLocalTime();
 }
 
-uint8_t StartWiFi() {
-  Serial.println("\r\nConnecting to: " + String(ssid));
+uint8_t StartWiFi() 
+{
+  Serial.println("\r\nWiFi Connecting to: " + String(ssid));
   IPAddress dns(8, 8, 8, 8); // Use Google DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
-  WiFi.setAutoConnect(true);
-  WiFi.setAutoReconnect(true);
   WiFi.begin(ssid, password);
-  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.printf("STA: Failed!\n");
-    WiFi.disconnect(false);
+  if (WiFi.waitForConnectResult() != WL_CONNECTED) 
+  {
+    Serial.printf("WiFi connection failed, retrying...!\n");
+    WiFi.disconnect(true); // delete SID/PWD
     delay(500);
     WiFi.begin(ssid, password);
   }
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.waitForConnectResult() == WL_CONNECTED) 
+  {
     wifi_signal = WiFi.RSSI(); // Get Wifi Signal strength now, because the WiFi will be turned off to save power!
     Serial.println("WiFi connected at: " + WiFi.localIP().toString());
   }
-  else {
+  else 
+  {
     wifi_signal = 0;
     Serial.println("WiFi connection *** FAILED ***");
   }
@@ -148,7 +149,7 @@ void setup() {
       bool RxForecast = false;
       WiFiClient client;   // wifi client object
       while ((RxWeather == false || RxForecast == false) && Attempts <= 2) { // Try up-to 2 time for Weather and Forecast data
-        if (RxWeather  == false) RxWeather  = obtainWeatherData(client, "onecall");
+        if (RxWeather  == false) RxWeather  = obtainWeatherData(client, "weather");
         if (RxForecast == false) RxForecast = obtainWeatherData(client, "forecast");
         Attempts++;
       }
@@ -158,7 +159,7 @@ void setup() {
         epd_poweron();      // Switch on EPD display
         epd_clear();        // Clear the screen
         DisplayWeather();   // Display the weather data
-        edp_update();       // Update the display to show the information
+        epd_update();       // Update the display to show the information
         epd_poweroff_all(); // Switch off all power to EPD
       }
     }
@@ -166,7 +167,7 @@ void setup() {
   else {
     epd_clear();        // Clear the screen
     DisplayStatusSection(600, 20, wifi_signal);    // Wi-Fi signal strength and Battery voltage
-    edp_update();       // Update the display to show the information
+    epd_update();       // Update the display to show the information
     epd_poweroff_all(); // Switch off all power to EPD
   }
   BeginSleep();
@@ -179,7 +180,7 @@ void Convert_Readings_to_Imperial() { // Only the first 3-hours are used
 }
 
 bool DecodeWeather(WiFiClient& json, String Type) {
-  Serial.print(F("\nCreating object...and "));
+  Serial.print(F("\nDeserializing json... "));
   DynamicJsonDocument doc(64 * 1024);                      // allocate the JsonDocument
   DeserializationError error = deserializeJson(doc, json); // Deserialize the JSON document
   if (error) {                                             // Test if parsing succeeds.
@@ -190,29 +191,22 @@ bool DecodeWeather(WiFiClient& json, String Type) {
   // convert it to a JsonObject
   JsonObject root = doc.as<JsonObject>();
   Serial.println(" Decoding " + Type + " data");
-  if (Type == "onecall") {
-    // All Serial.println statements are for diagnostic purposes and some are not required, remove if not needed with //
+  if (Type == "weather") {
     WxConditions[0].High        = -50; // Minimum forecast low
     WxConditions[0].Low         = 50;  // Maximum Forecast High
     WxConditions[0].FTimezone   = doc["timezone_offset"]; // "0"
-    JsonObject current = doc["current"];
-    WxConditions[0].Sunrise     = current["sunrise"];                              Serial.println("SRis: " + String(WxConditions[0].Sunrise));
-    WxConditions[0].Sunset      = current["sunset"];                               Serial.println("SSet: " + String(WxConditions[0].Sunset));
-    WxConditions[0].Temperature = current["temp"];                                 Serial.println("Temp: " + String(WxConditions[0].Temperature));
-    WxConditions[0].FeelsLike   = current["feels_like"];                           Serial.println("FLik: " + String(WxConditions[0].FeelsLike));
-    WxConditions[0].Pressure    = current["pressure"];                             Serial.println("Pres: " + String(WxConditions[0].Pressure));
-    WxConditions[0].Humidity    = current["humidity"];                             Serial.println("Humi: " + String(WxConditions[0].Humidity));
-    WxConditions[0].DewPoint    = current["dew_point"];                            Serial.println("DPoi: " + String(WxConditions[0].DewPoint));
-    WxConditions[0].UVI         = current["uvi"];                                  Serial.println("UVin: " + String(WxConditions[0].UVI));
-    WxConditions[0].Cloudcover  = current["clouds"];                               Serial.println("CCov: " + String(WxConditions[0].Cloudcover));
-    WxConditions[0].Visibility  = current["visibility"];                           Serial.println("Visi: " + String(WxConditions[0].Visibility));
-    WxConditions[0].Windspeed   = current["wind_speed"];                           Serial.println("WSpd: " + String(WxConditions[0].Windspeed));
-    WxConditions[0].Winddir     = current["wind_deg"];                             Serial.println("WDir: " + String(WxConditions[0].Winddir));
-    JsonObject current_weather  = current["weather"][0];
-    String Description = current_weather["description"];                           // "scattered clouds"
-    String Icon        = current_weather["icon"];                                  // "01n"
-    WxConditions[0].Forecast0   = Description;                                     Serial.println("Fore: " + String(WxConditions[0].Forecast0));
-    WxConditions[0].Icon        = Icon;                                            Serial.println("Icon: " + String(WxConditions[0].Icon));
+    WxConditions[0].Sunrise     = root["sys"]["sunrise"].as<int>();                Serial.println("SRis: " + String(WxConditions[0].Sunrise));
+    WxConditions[0].Sunset      = root["sys"]["sunset"].as<int>();                 Serial.println("SSet: " + String(WxConditions[0].Sunset));
+    WxConditions[0].Temperature = root["main"]["temp"].as<float>();                Serial.println("Temp: " + String(WxConditions[0].Temperature));
+    WxConditions[0].FeelsLike   = root["main"]["feels_like"].as<float>();          Serial.println("FLik: " + String(WxConditions[0].FeelsLike));
+    WxConditions[0].Pressure    = root["main"]["pressure"].as<int>();              Serial.println("Pres: " + String(WxConditions[0].Pressure));
+    WxConditions[0].Humidity    = root["main"]["humidity"].as<int>();              Serial.println("Humi: " + String(WxConditions[0].Humidity));
+    WxConditions[0].Cloudcover  = root["clouds"]["all"].as<int>();                 Serial.println("CCov: " + String(WxConditions[0].Cloudcover));
+    WxConditions[0].Visibility  = root["visibility"].as<int>();                    Serial.println("Visi: " + String(WxConditions[0].Visibility));
+    WxConditions[0].Windspeed   = root["wind"]["speed"].as<float>();               Serial.println("WSpd: " + String(WxConditions[0].Windspeed));
+    WxConditions[0].Winddir     = root["wind"]["deg"].as<float>();                 Serial.println("WDir: " + String(WxConditions[0].Winddir));
+    WxConditions[0].Forecast0   = root["weather"][0]["description"].as<char*>();      Serial.println("Fore: " + String(WxConditions[0].Forecast0));
+    WxConditions[0].Icon        = root["weather"][0]["icon"].as<char*>();             Serial.println("Icon: " + String(WxConditions[0].Icon));
   }
   if (Type == "forecast") {
     //Serial.println(json);
@@ -246,7 +240,7 @@ bool DecodeWeather(WiFiClient& json, String Type) {
   }
   return true;
 }
-//#########################################################################################
+
 String ConvertUnixTime(int unix_time) {
   // Returns either '21:12  ' or ' 09:12pm' depending on Units mode
   time_t tm = unix_time;
@@ -260,19 +254,21 @@ String ConvertUnixTime(int unix_time) {
   }
   return output;
 }
-//#########################################################################################
+
 bool obtainWeatherData(WiFiClient & client, const String & RequestType) {
   const String units = (Units == "M" ? "metric" : "imperial");
-  const String Version = (RequestType=="onecall"?"3.0":"2.5");
+  const String Version = "2.5";
   client.stop(); // close connection before sending a new request
   HTTPClient http;
   // Since June 2024, OWM API need v3.0 for the current, and still provide forecast as
   // awaited on version v2.5
   //api.openweathermap.org/data/2.5/RequestType?lat={lat}&lon={lon}&appid={API key}
   String uri = "/data/"+Version+"/"+RequestType+"?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey + "&mode=json&units=" + units + "&lang=" + Language;
-  //Serial.println(uri);
+  Serial.print("Connecting: ");
+  Serial.print(server + uri);
+  Serial.println();
   if (RequestType == "onecall") uri += "&exclude=minutely,hourly,alerts,daily";
-  http.begin(client, server, 80, uri); //http.begin(uri,test_root_ca); //HTTPS example connection
+  http.begin(client, server, 80, uri); 
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     if (!DecodeWeather(http.getStream(), RequestType)) return false;
@@ -280,7 +276,7 @@ bool obtainWeatherData(WiFiClient & client, const String & RequestType) {
   }
   else
   {
-    Serial.printf("connection failed, error: %s", http.errorToString(httpCode).c_str());
+    Serial.printf("connection failed, http error code %i %s\n", httpCode, http.errorToString(httpCode));
     client.stop();
     http.end();
     return false;
@@ -352,7 +348,7 @@ void DisplayMainWeatherSection(int x, int y) {
   setFont(OpenSans8B);
   DisplayTempHumiPressSection(x, y - 60);
   DisplayForecastTextSection(x - 55, y + 45);
-  DisplayVisiCCoverUVISection(x - 10, y + 95);
+  DisplayVisiCCoverSection(x - 10, y + 95);
 }
 
 void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int Cradius) {
@@ -446,23 +442,11 @@ void DisplayForecastTextSection(int x, int y) {
   if (Line1 != Line2) drawString(x + 30, y + 30, Line2, LEFT);
 }
 
-void DisplayVisiCCoverUVISection(int x, int y) {
+void DisplayVisiCCoverSection(int x, int y) {
   setFont(OpenSans12B);
   Serial.print("=========================="); Serial.println(WxConditions[0].Visibility);
   Visibility(x + 5, y, String(WxConditions[0].Visibility) + "M");
   CloudCover(x + 155, y, WxConditions[0].Cloudcover);
-  Display_UVIndexLevel(x + 265, y, WxConditions[0].UVI);
-}
-
-void Display_UVIndexLevel(int x, int y, float UVI) {
-  String Level = "";
-  if (UVI <= 2)              Level = " "+ TXT_UV_LOW;
-  if (UVI >= 3 && UVI <= 5)  Level = " "+ TXT_UV_MEDIUM;
-  if (UVI >= 6 && UVI <= 7)  Level = " " + TXT_UV_HIGH;
-  if (UVI >= 8 && UVI <= 10) Level = " "+ TXT_UV_VERYHIGH;
-  if (UVI >= 11)             Level = " " + TXT_UV_EXTREME;
-  drawString(x + 20, y - 5, String(UVI, (UVI < 0 ? 1 : 0)) + Level, LEFT);
-  DrawUVI(x - 10, y - 5);
 }
 
 void DisplayForecastWeather(int x, int y, int index, int fwidth) {
@@ -579,14 +563,21 @@ void DisplayGraphSection(int x, int y) {
   int gx = (SCREEN_WIDTH - gwidth * 4) / 5 + 8;
   int gy = (SCREEN_HEIGHT - gheight - 30);
   int gap = gwidth + gx;
-  // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode)
-  DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
+  
+  // 1. Temperature
+  DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+  
+  // 2. Humidity
+  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
+  
+  // 3. Rain
   if (SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings))
-    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+    DrawGraph(gx + 2 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
   else
-    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
+    DrawGraph(gx + 2 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
+  
+  // 4. Air Pressure
+  DrawGraph(gx + 3 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
 }
 
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
@@ -699,7 +690,7 @@ void DrawBattery(int x, int y) {
   esp_adc_cal_characteristics_t adc_chars;
   esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &adc_chars);
   if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
-    Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
+    Serial.printf("eFuse Vref:%u mV\n", adc_chars.vref);
     vref = adc_chars.vref;
   }
   float voltage = analogRead(36) / 4096.0 * 6.566 * (vref / 1000.0);
@@ -715,6 +706,8 @@ void DrawBattery(int x, int y) {
   }
 }
 
+
+// ######################################## Weather Symbol ########################################
 // Symbols are drawn on a relative 10x10grid and 1 scale unit = 1 drawing unit
 void addcloud(int x, int y, int scale, int linesize) {
   fillCircle(x - scale * 3, y, scale, Black);                                                              // Left most circle
@@ -881,22 +874,6 @@ void CloudCover(int x, int y, int CloudCover) {
   drawString(x + 30, y, String(CloudCover) + "%", LEFT);
 }
 
-void Visibility(int x, int y, String Visibility) {
-  float start_angle = 0.52, end_angle = 2.61, Offset = 10;
-  int r = 14;
-  for (float i = start_angle; i < end_angle; i = i + 0.05) {
-    drawPixel(x + r * cos(i), y - r / 2 + r * sin(i) + Offset, Black);
-    drawPixel(x + r * cos(i), 1 + y - r / 2 + r * sin(i) + Offset, Black);
-  }
-  start_angle = 3.61; end_angle = 5.78;
-  for (float i = start_angle; i < end_angle; i = i + 0.05) {
-    drawPixel(x + r * cos(i), y + r / 2 + r * sin(i) + Offset, Black);
-    drawPixel(x + r * cos(i), 1 + y + r / 2 + r * sin(i) + Offset, Black);
-  }
-  fillCircle(x, y + Offset, r / 4, Black);
-  drawString(x + 20, y, Visibility, LEFT);
-}
-
 void addmoon(int x, int y, bool IconSize) {
   int xOffset = 65;
   int yOffset = 12;
@@ -911,6 +888,24 @@ void addmoon(int x, int y, bool IconSize) {
 void Nodata(int x, int y, bool IconSize, String IconName) {
   if (IconSize == LargeIcon) setFont(OpenSans24B); else setFont(OpenSans12B);
   drawString(x - 3, y - 10, "?", CENTER);
+}
+
+// ################################################################################################
+
+void Visibility(int x, int y, String Visibility) {
+  float start_angle = 0.52, end_angle = 2.61, Offset = 10;
+  int r = 14;
+  for (float i = start_angle; i < end_angle; i = i + 0.05) {
+    drawPixel(x + r * cos(i), y - r / 2 + r * sin(i) + Offset, Black);
+    drawPixel(x + r * cos(i), 1 + y - r / 2 + r * sin(i) + Offset, Black);
+  }
+  start_angle = 3.61; end_angle = 5.78;
+  for (float i = start_angle; i < end_angle; i = i + 0.05) {
+    drawPixel(x + r * cos(i), y + r / 2 + r * sin(i) + Offset, Black);
+    drawPixel(x + r * cos(i), 1 + y + r / 2 + r * sin(i) + Offset, Black);
+  }
+  fillCircle(x, y + Offset, r / 4, Black);
+  drawString(x + 20, y, Visibility, LEFT);
 }
 
 void DrawMoonImage(int x, int y) {
@@ -934,13 +929,7 @@ void DrawSunsetImage(int x, int y) {
   epd_draw_grayscale_image(area, (uint8_t *) sunset_data);
 }
 
-void DrawUVI(int x, int y) {
-  Rect_t area = {
-    .x = x, .y = y, .width  = uvi_width, .height = uvi_height
-  };
-  epd_draw_grayscale_image(area, (uint8_t *) uvi_data);
-}
-
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
 /* (C) D L BIRD
     This function will draw a graph on a ePaper/TFT/LCD display using data from an array containing data to be graphed.
     The variable 'max_readings' determines the maximum number of data elements for each array. Call it with the following parametric data:
@@ -956,7 +945,6 @@ void DrawUVI(int x, int y) {
     If called with Y!_Max value of 500 and the data never goes above 500, then autoscale will retain a 0-500 Y scale, if on, the scale increases/decreases to match the data.
     auto_scale_margin, e.g. if set to 1000 then autoscale increments the scale by 1000 steps.
 */
-void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
 #define auto_scale_margin 0 // Sets the autoscale increment, so axis steps up fter a change of e.g. 3
 #define y_minor_axis 5      // 5 y-axis division markers
   setFont(OpenSans10B);
@@ -1069,6 +1057,6 @@ void setFont(GFXfont const & font) {
   currentFont = font;
 }
 
-void edp_update() {
+void epd_update() {
   epd_draw_grayscale_image(epd_full_screen(), framebuffer); // Update the screen
 }
